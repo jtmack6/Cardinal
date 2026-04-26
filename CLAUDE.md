@@ -89,6 +89,38 @@ The top-level Makefile delegates to subdir Makefiles. Useful sub-targets for qui
 
 Build artifacts land in `bin/` as bundle directories (`Cardinal.lv2/`, `Cardinal.vst3/`, `Cardinal.clap/`, `Cardinal.vst/`, plus `CardinalFX.*`, `CardinalSynth.*`, `CardinalMini.*` and standalones `Cardinal`, `CardinalNative`, `CardinalMini`).
 
+### Known local patches (not committed upstream, not in parent repo either)
+
+These are working-tree edits inside submodules that are required to build on this machine but live nowhere except on disk. **`git submodule update <path>` will silently delete them** — re-apply from the recipes below if that happens.
+
+#### 1. MindMeldModular `Shape.hpp` — macOS 26 SDK `std::abs` ambiguity
+
+- **File:** `plugins/MindMeldModular/src/ShapeMaster/Shape.hpp` (submodule pinned at `8136f0c9`)
+- **Symptom:** build fails with `error: call to 'abs' is ambiguous` in `Shape::calcY<float>` and `Shape::calcY<double>`. Cascades into `DisplayUtil.cpp`, `DisplayLight.cpp`, `Display.cpp`, `Channel.cpp`.
+- **Cause:** macOS 26 SDK's libc++ declares integer `std::abs` as non-template overloads in `<__math/abs.h>`. The explicit-template form `std::abs<T>(...)` for floating types becomes ambiguous against them.
+- **Fix:** at line 160, replace
+  ```cpp
+  T dx = std::abs<T>((T)points[p + 1].x - (T)points[p].x);
+  ```
+  with
+  ```cpp
+  T dx_signed = (T)points[p + 1].x - (T)points[p].x;
+  T dx = dx_signed < (T)0 ? -dx_signed : dx_signed;
+  ```
+- **Why ternary instead of `std::abs(...)` without `<T>`:** `Shape.hpp` doesn't directly include `<cmath>`, so the floating-point `std::abs` overloads aren't reliably visible. Ternary needs no headers.
+
+### Submodule drift (the most common build break)
+
+If a build error references an undeclared identifier from a third-party module (e.g. `modelPhaseque`, `modelXYZ`), check `git submodule status` for `+`-prefixed entries. A `+` means the working-tree submodule SHA differs from what the parent Cardinal repo pins — usually because the submodule was advanced past Cardinal's expected commit (often by a stray `git submodule update --remote` or manual checkout). The generated `plugins/plugins.cpp` references whatever symbols the *pinned* submodule exports; if the local submodule has renamed/removed them, you get an undeclared-identifier error.
+
+Fix: reset the offending submodule(s) to the parent's pinned SHA. Audit working trees first with `git -C <submodule> status --short` to make sure no local edits are about to be lost, then:
+
+```bash
+git submodule update <path> [<path> ...]
+```
+
+Historical example from this repo: ZZC drifted forward to a commit where `Phaseque.cpp` had been renamed to `Phasor.cpp`, breaking `plugins.cpp:3710`'s reference to `modelPhaseque`. `git submodule update plugins/ZZC` restored the build.
+
 ### Tests
 
 There is no project-level test suite. Verification is done by:
