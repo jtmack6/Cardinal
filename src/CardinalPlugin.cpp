@@ -11,6 +11,7 @@
 #include <random.hpp>
 #include <settings.hpp>
 #include <system.hpp>
+#include <tag.hpp>
 
 #include <app/Scene.hpp>
 #include <engine/Engine.hpp>
@@ -28,6 +29,9 @@
 #endif
 
 #include <cfloat>
+#include <cmath>
+#include <cstdlib>
+#include <fstream>
 #include <list>
 
 #include "CardinalCommon.hpp"
@@ -155,6 +159,191 @@ struct ScopedContext {
         rack::contextSet(nullptr);
     }
 };
+
+// -----------------------------------------------------------------------------------------------------------
+// CARDINAL_DUMP_CATALOG: write the entire registered Model catalog as JSON, then exit.
+//
+// Triggered by setting the CARDINAL_DUMP_CATALOG env var to an output file
+// path. Walks rack::plugin::plugins (populated by initStaticPlugins() during
+// Initializer construction), instantiates each Model so we can read the
+// paramQuantities/inputInfos/outputInfos populated by configParam/configInput/
+// configOutput, and writes a single JSON document.
+//
+// Modules that throw on instantiation are written with empty params/inputs/
+// outputs and an "_error" key — the dump continues so a single bad module
+// doesn't tank the whole catalog.
+//
+// Used by the cardinal-mcp project's catalog_builder to produce authoritative
+// per-parameter metadata (id, label, range, default, units, display
+// transforms) that the plugin.json scan can't provide.
+
+// JSON does not support Infinity or NaN; emit null instead.
+// Some Cardinal modules use -inf/+inf as "unbounded" sentinels for
+// program/bank selection params, etc.
+static void cardinalCatalogWriteFloat(std::ostream& out, const float v)
+{
+    if (std::isfinite(v)) {
+        out << v;
+    } else {
+        out << "null";
+    }
+}
+
+static std::string cardinalCatalogJsonEscape(const std::string& s)
+{
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (const char c : s) {
+        switch (c) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b";  break;
+            case '\f': out += "\\f";  break;
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    char buf[8];
+                    std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    out += buf;
+                } else {
+                    out += c;
+                }
+        }
+    }
+    return out;
+}
+
+static void cardinalDumpCatalogToJson(const char* const path)
+{
+    std::ofstream out(path);
+    if (!out) {
+        d_stderr2("CARDINAL_DUMP_CATALOG: failed to open %s for writing", path);
+        std::exit(1);
+    }
+
+    out << "{\n";
+    out << "  \"_generator\": \"Cardinal CARDINAL_DUMP_CATALOG\",\n";
+    out << "  \"_cardinal_version\": \"" << cardinalCatalogJsonEscape(CARDINAL_VERSION) << "\",\n";
+    out << "  \"plugins\": [\n";
+
+    bool firstPlugin = true;
+    for (rack::plugin::Plugin* const plugin : rack::plugin::plugins) {
+        if (!firstPlugin) out << ",\n";
+        firstPlugin = false;
+        out << "    {\n";
+        out << "      \"slug\": \"" << cardinalCatalogJsonEscape(plugin->slug) << "\",\n";
+        out << "      \"name\": \"" << cardinalCatalogJsonEscape(plugin->name) << "\",\n";
+        out << "      \"version\": \"" << cardinalCatalogJsonEscape(plugin->version) << "\",\n";
+        out << "      \"modules\": [\n";
+
+        bool firstModel = true;
+        for (rack::plugin::Model* const model : plugin->models) {
+            if (!firstModel) out << ",\n";
+            firstModel = false;
+
+            out << "        {\n";
+            out << "          \"slug\": \"" << cardinalCatalogJsonEscape(model->slug) << "\",\n";
+            out << "          \"name\": \"" << cardinalCatalogJsonEscape(model->name) << "\",\n";
+            out << "          \"description\": \"" << cardinalCatalogJsonEscape(model->description) << "\",\n";
+            out << "          \"tags\": [";
+            bool firstTag = true;
+            for (const int tagId : model->tagIds) {
+                if (!firstTag) out << ", ";
+                firstTag = false;
+                out << "\"" << cardinalCatalogJsonEscape(rack::tag::getTag(tagId)) << "\"";
+            }
+            out << "],\n";
+
+            // Try to instantiate so we can read the configParam/configInput/configOutput data.
+            rack::engine::Module* m = nullptr;
+            std::string errorMsg;
+            try {
+                m = model->createModule();
+            } catch (const std::exception& e) {
+                errorMsg = e.what();
+            } catch (...) {
+                errorMsg = "(unknown C++ exception during createModule)";
+            }
+
+            if (m == nullptr) {
+                out << "          \"params\":  [],\n";
+                out << "          \"inputs\":  [],\n";
+                out << "          \"outputs\": [],\n";
+                out << "          \"_error\":  \"" << cardinalCatalogJsonEscape(errorMsg) << "\"\n";
+            } else {
+                // Params
+                out << "          \"params\": [";
+                for (size_t i = 0; i < m->paramQuantities.size(); ++i) {
+                    if (i > 0) out << ", ";
+                    rack::engine::ParamQuantity* const pq = m->paramQuantities[i];
+                    if (pq == nullptr) {
+                        out << "{\"id\": " << i << ", \"name\": \"\", \"_null\": true}";
+                        continue;
+                    }
+                    out << "{\"id\": " << i
+                        << ", \"name\": \"" << cardinalCatalogJsonEscape(pq->name) << "\""
+                        << ", \"min\": ";       cardinalCatalogWriteFloat(out, pq->minValue);
+                    out << ", \"max\": ";       cardinalCatalogWriteFloat(out, pq->maxValue);
+                    out << ", \"default\": ";   cardinalCatalogWriteFloat(out, pq->defaultValue);
+                    out << ", \"units\": \"" << cardinalCatalogJsonEscape(pq->unit) << "\""
+                        << ", \"display_base\": ";       cardinalCatalogWriteFloat(out, pq->displayBase);
+                    out << ", \"display_multiplier\": "; cardinalCatalogWriteFloat(out, pq->displayMultiplier);
+                    out << ", \"display_offset\": ";     cardinalCatalogWriteFloat(out, pq->displayOffset);
+                    out << ", \"description\": \"" << cardinalCatalogJsonEscape(pq->description) << "\"}";
+                }
+                out << "],\n";
+
+                // Inputs
+                out << "          \"inputs\": [";
+                for (size_t i = 0; i < m->inputInfos.size(); ++i) {
+                    if (i > 0) out << ", ";
+                    rack::engine::PortInfo* const pi = m->inputInfos[i];
+                    if (pi == nullptr) {
+                        out << "{\"id\": " << i << ", \"name\": \"\", \"_null\": true}";
+                        continue;
+                    }
+                    out << "{\"id\": " << i
+                        << ", \"name\": \"" << cardinalCatalogJsonEscape(pi->name) << "\""
+                        << ", \"description\": \"" << cardinalCatalogJsonEscape(pi->description) << "\"}";
+                }
+                out << "],\n";
+
+                // Outputs
+                out << "          \"outputs\": [";
+                for (size_t i = 0; i < m->outputInfos.size(); ++i) {
+                    if (i > 0) out << ", ";
+                    rack::engine::PortInfo* const pi = m->outputInfos[i];
+                    if (pi == nullptr) {
+                        out << "{\"id\": " << i << ", \"name\": \"\", \"_null\": true}";
+                        continue;
+                    }
+                    out << "{\"id\": " << i
+                        << ", \"name\": \"" << cardinalCatalogJsonEscape(pi->name) << "\""
+                        << ", \"description\": \"" << cardinalCatalogJsonEscape(pi->description) << "\"}";
+                }
+                out << "]\n";
+
+                try {
+                    delete m;
+                } catch (...) {
+                    // Some modules misbehave on destruction; we don't care, we're exiting anyway.
+                }
+            }
+
+            out << "        }";
+        }
+
+        out << "\n      ]\n";
+        out << "    }";
+    }
+
+    out << "\n  ]\n}\n";
+    out.close();
+
+    d_stdout("CARDINAL_DUMP_CATALOG: wrote %s", path);
+}
 
 // -----------------------------------------------------------------------------------------------------------
 
@@ -316,6 +505,15 @@ public:
        #ifdef CARDINAL_INIT_OSC_THREAD
         fInitializer->remotePluginInstance = this;
        #endif
+
+        // CARDINAL_DUMP_CATALOG: dump the model registry as JSON and exit.
+        // Context + plugins are fully initialized at this point; ScopedContext
+        // (above, line ~370) makes our engine the current Rack context, so
+        // module instantiation in the dumper resolves correctly.
+        if (const char* const dumpPath = std::getenv("CARDINAL_DUMP_CATALOG")) {
+            cardinalDumpCatalogToJson(dumpPath);
+            std::exit(0);
+        }
     }
 
     ~CardinalPlugin() override
