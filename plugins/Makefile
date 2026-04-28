@@ -344,12 +344,8 @@ PLUGIN_FILES += 4msCompany/src/compat/gui.cc
 PLUGIN_FILES += 4msCompany/src/compat/patch.cc
 PLUGIN_FILES += 4msCompany/src/flatbuffers/encode.cc
 
-# Selected per-module wrappers (each is a 3-line GenericModule<Info> instantiation)
-PLUGIN_FILES += 4msCompany/src/models/Atvert2.cc
-PLUGIN_FILES += 4msCompany/src/models/Slew.cc
-PLUGIN_FILES += 4msCompany/src/models/Noise.cc
-PLUGIN_FILES += 4msCompany/src/models/Pan.cc
-PLUGIN_FILES += 4msCompany/src/models/Source.cc
+# All 47 module wrappers (each is a 3-line GenericModule<Info> instantiation)
+PLUGIN_FILES += $(wildcard 4msCompany/src/models/*.cc)
 
 # CoreModules registry
 PLUGIN_FILES += 4msCompany/lib/CoreModules/moduleFactory.cc
@@ -381,16 +377,58 @@ PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/lan
 PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/memory_util.cpp
 PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/utf.cpp
 
-# Selected DSP cores (one .cc per chosen module)
-PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/Atvert2Core.cc
-PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/SlewCore.cc
-PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/NoiseCore.cc
-PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/PanCore.cc
-PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/SourceCore.cc
+# All 47 DSP cores (one .cc per module — globbed)
+PLUGIN_FILES += $(wildcard 4msCompany/lib/CoreModules/4ms/core/*Core.cc)
 
-# Modules clashing with other collections (handled via #define rename in plugins.cpp).
-# The model slugs in plugin.json stay as-is; only C++ symbol names are renamed.
-FOURMS_CUSTOM = Noise Pan Slew
+# Per-module DSP subdirectories (from upstream CoreModules/4ms/CMakeLists.txt).
+# These are the dependencies of the hardware-clone modules (EnOsc, DLD, Tapo,
+# PEG, MPEG, QPLFO, looping-delay) that ship multi-file DSP implementations.
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/enosc/data.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/enosc/dynamic_data.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/axoloti-wrapper/axoloti_math.cpp
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/multitap_delay.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/resources.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/tap_allocator.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/control.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/ui.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/stmlib/utils/random.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/tapo/stmlib/dsp/units.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/looping-delay/src/calibration_storage.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/qplfo/qplfo.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/qplfo/qplfo_mocks.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/peg_base.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/trigout.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/analog_conditioning.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/env_update.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/envelope_calcs.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/flash_user.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/params.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/pingable_env.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/dig_inouts.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/timers.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/calibration.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/env_transition.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/leds.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/shareddrv/debounced_digins.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/shareddrv/dac.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg-common/pwm.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/mpeg/envelope_calcs.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/peg/envelope_calcs.cc
+
+# Models clashing with other collections. We only rename the model pointers
+# (not bare class/namespace names), because 4ms uses template-instantiated
+# GenericModule<Info> for everything — the C++ class names are mangled with
+# the Info type and don't collide at the link level. The bare-name rename
+# would corrupt source like "LPG::stmlib::SemitonesToRatio" where LPG is a
+# namespace inside 4ms's own DSP code.
+FOURMS_MODEL_RENAMES = \
+    -DmodelDetune=model4msDetune \
+    -DmodelFollow=model4msFollow \
+    -DmodelLPG=model4msLPG \
+    -DmodelNoise=model4msNoise \
+    -DmodelOctave=model4msOctave \
+    -DmodelPan=model4msPan \
+    -DmodelSlew=model4msSlew
 
 # --------------------------------------------------------------
 # 21kHz
@@ -2235,7 +2273,7 @@ $(BUILD_DIR)/4msCompany/%.o: 4msCompany/%
 	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
 	@echo "Compiling $<"
 	$(SILENT)$(CXX) $< -I$(abspath $(ROOT)/src/Rack/dep/osdialog) $(BUILD_CXX_FLAGS) -c -o $@ \
-		$(foreach m,$(FOURMS_CUSTOM),$(call custom_module_names,$(m),4ms)) \
+		$(FOURMS_MODEL_RENAMES) \
 		-DpluginInstance=pluginInstance__4ms \
 		-DPRIVATE= \
 		-DVCVRACK \

@@ -18,19 +18,71 @@
 // ZamAudio (always enabled) - TODO
 // #include "ZamAudio/src/plugin.hpp"
 
-// 4ms Company (Hub + selected DSP modules — see plugins/4msCompany_INTEGRATION.md)
+// 4ms Company (Hub + all DSP modules — see plugins/4msCompany_INTEGRATION.md)
 // Forward declarations only; no upstream plugin.hh include because it pulls in
-// MetaModule's full namespace. Rename clashing symbols.
+// MetaModule's full namespace. Rename the 7 model symbols that clash with
+// other collections (the slugs in plugin.json stay as-is, so users still see
+// them as Detune/Follow/LPG/Noise/Octave/Pan/Slew in the browser).
+#define modelDetune model4msDetune
+#define modelFollow model4msFollow
+#define modelLPG model4msLPG
 #define modelNoise model4msNoise
+#define modelOctave model4msOctave
 #define modelPan model4msPan
 #define modelSlew model4msSlew
 extern Model* modelHubMedium;
 extern Model* modelAtvert2;
-extern Model* modelSlew;
+extern Model* modelBPF;
+extern Model* modelBWAVP;
+extern Model* modelCLKD;
+extern Model* modelCLKM;
+extern Model* modelComplexEG;
+extern Model* modelDEV;
+extern Model* modelDLD;
+extern Model* modelDetune;
+extern Model* modelDjembe;
+extern Model* modelDrum;
+extern Model* modelENVVCA;
+extern Model* modelEnOsc;
+extern Model* modelFM;
+extern Model* modelFollow;
+extern Model* modelFreeverb;
+extern Model* modelGate;
+extern Model* modelHPF;
+extern Model* modelKPLS;
+extern Model* modelL4;
+extern Model* modelLPG;
+extern Model* modelMNMX;
+extern Model* modelMPEG;
+extern Model* modelMultiLFO;
 extern Model* modelNoise;
+extern Model* modelOctave;
+extern Model* modelPEG;
+extern Model* modelPI;
 extern Model* modelPan;
+extern Model* modelPitchShift;
+extern Model* modelProb8;
+extern Model* modelQCD;
+extern Model* modelQPLFO;
+extern Model* modelRCD;
+extern Model* modelSCM;
+extern Model* modelSH;
+extern Model* modelSHEV;
+extern Model* modelSISM;
+extern Model* modelSeq8;
+extern Model* modelSlew;
 extern Model* modelSource;
+extern Model* modelStMix;
+extern Model* modelSwitch14;
+extern Model* modelSwitch41;
+extern Model* modelTapo;
+extern Model* modelVCAM;
+extern Model* modelVerb;
+#undef modelDetune
+#undef modelFollow
+#undef modelLPG
 #undef modelNoise
+#undef modelOctave
 #undef modelPan
 #undef modelSlew
 
@@ -1283,6 +1335,16 @@ static void initStatic__ZamAudio()
 }
 */
 
+// Globals normally defined in 4msCompany/src/plugin.cc, which we skip
+// (Cardinal manages plugin instance / addModel registration via the
+// initStatic__4ms() pattern below). The Hub framework references these
+// directly, so re-provide them here.
+} } // close rack::plugin
+namespace MetaModule {
+    std::string last_file_path;
+}
+namespace rack { namespace plugin {
+
 static void initStatic__4ms()
 {
     Plugin* const p = new Plugin;
@@ -1293,25 +1355,57 @@ static void initStatic__4ms()
     {
         p->addModel(modelHubMedium);
         p->addModel(modelAtvert2);
-        p->addModel(model4msSlew);
+        p->addModel(modelBPF);
+        p->addModel(modelBWAVP);
+        p->addModel(modelCLKD);
+        p->addModel(modelCLKM);
+        p->addModel(modelComplexEG);
+        p->addModel(modelDEV);
+        p->addModel(modelDLD);
+        p->addModel(model4msDetune);
+        p->addModel(modelDjembe);
+        p->addModel(modelDrum);
+        p->addModel(modelENVVCA);
+        p->addModel(modelEnOsc);
+        p->addModel(modelFM);
+        p->addModel(model4msFollow);
+        p->addModel(modelFreeverb);
+        p->addModel(modelGate);
+        p->addModel(modelHPF);
+        p->addModel(modelKPLS);
+        p->addModel(modelL4);
+        p->addModel(model4msLPG);
+        p->addModel(modelMNMX);
+        p->addModel(modelMPEG);
+        p->addModel(modelMultiLFO);
         p->addModel(model4msNoise);
+        p->addModel(model4msOctave);
+        p->addModel(modelPEG);
+        p->addModel(modelPI);
         p->addModel(model4msPan);
+        p->addModel(modelPitchShift);
+        p->addModel(modelProb8);
+        p->addModel(modelQCD);
+        p->addModel(modelQPLFO);
+        p->addModel(modelRCD);
+        p->addModel(modelSCM);
+        p->addModel(modelSH);
+        p->addModel(modelSHEV);
+        p->addModel(modelSISM);
+        p->addModel(modelSeq8);
+        p->addModel(model4msSlew);
         p->addModel(modelSource);
+        p->addModel(modelStMix);
+        p->addModel(modelSwitch14);
+        p->addModel(modelSwitch41);
+        p->addModel(modelTapo);
+        p->addModel(modelVCAM);
+        p->addModel(modelVerb);
 
-        // Drop everything else from the plugin manifest so the loader doesn't
-        // expect models we haven't registered. Skipping the hardware clones
-        // (DLD, Tapo, EnOsc, etc.) and the physical-hardware expanders.
-        for (const char* slug : {
-            "EnOsc","DLD","Tapo","SHEV","DEV","ENVVCA","PEG","MPEG",
-            "QCD","SCM","RCD","QPLFO","PI","VCAM","SISM","L4",
-            "Freeverb","BWAVP","CLKM","CLKD","Seq8","Verb","StMix",
-            "PitchShift","MultiLFO","KPLS","Drum","Djembe","Detune",
-            "SH","Switch41","Switch14","Prob8","Octave","MNMX",
-            "HPF","Gate","Follow","FM","ComplexEG","LPG","BPF",
-            "MMAudioExpander","MMButtonExpander",
-        }) {
-            spl.removeModule(slug);
-        }
+        // Drop the two physical-hardware expander modules (their classes are
+        // still compiled for typeinfo, but the models aren't registered).
+        spl.removeModule("MMAudioExpander");
+        spl.removeModule("MMButtonExpander");
     }
 }
 
