@@ -771,7 +771,11 @@ void Initializer::loadSettings(const bool isRealInstance)
     settings::token.clear();
     settings::windowMaximized = false;
     settings::windowPos = math::Vec(0, 0);
-    settings::pixelRatio = 0.0;
+    // Allow user-configured UI scale in settings.json (range 0.5–4.0 only).
+    // 0.0 = use OS-reported scale (default). Used as a multiplier in
+    // override/Window.cpp::step(): newPixelRatio *= settings::pixelRatio.
+    if (settings::pixelRatio < 0.5f || settings::pixelRatio > 4.0f)
+        settings::pixelRatio = 0.0;
     settings::sampleRate = 0;
     settings::threadCount = 1;
     settings::autosaveInterval = 0;
