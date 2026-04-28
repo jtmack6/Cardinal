@@ -633,16 +633,8 @@ void Window::step() {
 		}
 	}
 
-	// Get desired pixel ratio. Default: OS-reported display scale.
-	// Override: settings::pixelRatio (settable via settings.json) — multiplies the
-	// OS-reported scale to enlarge the entire UI (rack + chrome) for high-DPI
-	// displays where Cardinal's chrome would otherwise render too small.
-	// Cardinal originally removed the upstream Rack 2 hardcoded-replace behavior;
-	// here we restore it as a multiplier so the OS scale is still respected.
+	// Get desired pixel ratio
 	float newPixelRatio = internal->tlw->getScaleFactor();
-	if (settings::pixelRatio > 0.0f) {
-		newPixelRatio *= settings::pixelRatio;
-	}
 	if (newPixelRatio != pixelRatio) {
 		pixelRatio = newPixelRatio;
 		APP->event->handleDirty();
