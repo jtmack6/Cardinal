@@ -329,6 +329,7 @@ PLUGIN_FILES += 4msCompany/src/hardware_support/memory.cc
 PLUGIN_FILES += 4msCompany/src/hardware_support/random.cc
 PLUGIN_FILES += 4msCompany/src/hardware_support/time.cc
 PLUGIN_FILES += 4msCompany/src/hardware_support/filesystem_helpers.cc
+PLUGIN_FILES += 4msCompany/src/network/network.cpp
 PLUGIN_FILES += 4msCompany/src/wav/wav_file_stream.cc
 PLUGIN_FILES += 4msCompany/src/wav/dr_wav.c
 PLUGIN_FILES += 4msCompany/src/dsp/stream_resampler.cc
@@ -2229,9 +2230,10 @@ $(BUILD_DIR)/Cardinal/src/AIDA-X.cpp.o: Cardinal/src/AIDA-X.cpp
 $(BUILD_DIR)/4msCompany/%.o: 4msCompany/%
 	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
 	@echo "Compiling $<"
-	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -c -o $@ \
+	$(SILENT)$(CXX) $< -I$(abspath $(ROOT)/src/Rack/dep/osdialog) $(BUILD_CXX_FLAGS) -c -o $@ \
 		$(foreach m,$(FOURMS_CUSTOM),$(call custom_module_names,$(m),4ms)) \
 		-DpluginInstance=pluginInstance__4ms \
+		-DPRIVATE= \
 		-DVCVRACK \
 		-DSAMPLE_RATE=48000 \
 		-DALPACA_NO_PREFETCH \
@@ -2255,7 +2257,7 @@ $(BUILD_DIR)/4msCompany/%.o: 4msCompany/%
 		-I4msCompany/lib/patch-serial/ryml \
 		-I4msCompany/lib/patch-serial/ryml/rapidyaml/src \
 		-I4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src \
-		-I4msCompany/lib/flatbuffers \
+		-I4msCompany/lib/flatbuffers/include \
 		-Wno-unused-parameter \
 		-Wno-unused-variable \
 		-Wno-unused-function

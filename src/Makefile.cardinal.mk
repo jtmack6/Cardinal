@@ -182,6 +182,15 @@ else ifeq ($(WINDOWS),true)
 EXTRA_DSP_LIBS += -lole32 -lshlwapi -luuid -lversion
 endif
 
+# 4ms MetaModule Hub uses libcurl directly to push patches over WiFi to
+# user-owned hardware. macOS ships libcurl in the SDK; Linux/Windows builds
+# get curl via pkg-config.
+ifeq ($(MACOS),true)
+EXTRA_DSP_LIBS += -lcurl
+else
+EXTRA_DSP_LIBS += $(shell $(PKG_CONFIG) --libs libcurl 2>/dev/null || echo -lcurl)
+endif
+
 # --------------------------------------------------------------
 # Setup resources
 

@@ -1283,25 +1283,6 @@ static void initStatic__ZamAudio()
 }
 */
 
-// Stub for 4ms's MetaModule::network::requestRaw (WiFi push to MetaModule
-// hardware). Cardinal stubs rack::network::* (src/custom/network.cpp) so
-// outbound HTTP is unsupported by design. Returning empty here makes the
-// "Send Patch over Wi-Fi" button silently no-op; "Save Patch" still works.
-} // close namespace plugin
-} // close namespace rack
-#include <span>
-#include <vector>
-namespace MetaModule { namespace network {
-    std::vector<uint8_t> requestRaw(rack::network::Method,
-                                    const std::string&,
-                                    const std::span<uint8_t>&,
-                                    const rack::network::CookieMap&)
-    {
-        return {};
-    }
-}}
-namespace rack { namespace plugin {
-
 static void initStatic__4ms()
 {
     Plugin* const p = new Plugin;
