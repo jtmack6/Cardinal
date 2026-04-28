@@ -315,7 +315,11 @@ FUNDAMENTAL_CUSTOM = $(DRWAV)
 # We compile a curated subset, not the full collection. Hub gives us the
 # patch-export workflow; 5 utility DSP modules give us "real" 4ms voices.
 
-# Top-level Hub framework (skips upstream src/plugin.cc, src/expanders/, src/network/)
+# Top-level Hub framework (skips upstream src/plugin.cc; expanders are compiled
+# for typeinfo but their models are not registered so they don't appear in the
+# browser; network.cpp is compiled and uses libcurl for WiFi push)
+PLUGIN_FILES += 4msCompany/src/expanders/audio_expander.cc
+PLUGIN_FILES += 4msCompany/src/expanders/button_expander.cc
 PLUGIN_FILES += 4msCompany/src/hub/hub_map_button.cc
 PLUGIN_FILES += 4msCompany/src/hub/hub_jack_label.cc
 PLUGIN_FILES += 4msCompany/src/hub/hub_medium.cc
