@@ -18,6 +18,22 @@
 // ZamAudio (always enabled) - TODO
 // #include "ZamAudio/src/plugin.hpp"
 
+// 4ms Company (Hub + selected DSP modules — see plugins/4msCompany_INTEGRATION.md)
+// Forward declarations only; no upstream plugin.hh include because it pulls in
+// MetaModule's full namespace. Rename clashing symbols.
+#define modelNoise model4msNoise
+#define modelPan model4msPan
+#define modelSlew model4msSlew
+extern Model* modelHubMedium;
+extern Model* modelAtvert2;
+extern Model* modelSlew;
+extern Model* modelNoise;
+extern Model* modelPan;
+extern Model* modelSource;
+#undef modelNoise
+#undef modelPan
+#undef modelSlew
+
 // 21kHz
 #include "21kHz/src/21kHz.hpp"
 
@@ -957,6 +973,7 @@ void writeDefaultTheme() {}
 Plugin* pluginInstance__Cardinal;
 Plugin* pluginInstance__Fundamental;
 // Plugin* pluginInstance__ZamAudio;
+Plugin* pluginInstance__4ms;
 Plugin* pluginInstance__21kHz;
 Plugin* pluginInstance__8Mode;
 extern Plugin* pluginInstance__AaronStatic;
@@ -1265,6 +1282,57 @@ static void initStatic__ZamAudio()
     }
 }
 */
+
+// Stub for 4ms's MetaModule::network::requestRaw (WiFi push to MetaModule
+// hardware). Cardinal stubs rack::network::* (src/custom/network.cpp) so
+// outbound HTTP is unsupported by design. Returning empty here makes the
+// "Send Patch over Wi-Fi" button silently no-op; "Save Patch" still works.
+} // close namespace plugin
+} // close namespace rack
+#include <span>
+#include <vector>
+namespace MetaModule { namespace network {
+    std::vector<uint8_t> requestRaw(rack::network::Method,
+                                    const std::string&,
+                                    const std::span<uint8_t>&,
+                                    const rack::network::CookieMap&)
+    {
+        return {};
+    }
+}}
+namespace rack { namespace plugin {
+
+static void initStatic__4ms()
+{
+    Plugin* const p = new Plugin;
+    pluginInstance__4ms = p;
+
+    const StaticPluginLoader spl(p, "4msCompany");
+    if (spl.ok())
+    {
+        p->addModel(modelHubMedium);
+        p->addModel(modelAtvert2);
+        p->addModel(model4msSlew);
+        p->addModel(model4msNoise);
+        p->addModel(model4msPan);
+        p->addModel(modelSource);
+
+        // Drop everything else from the plugin manifest so the loader doesn't
+        // expect models we haven't registered. Skipping the hardware clones
+        // (DLD, Tapo, EnOsc, etc.) and the physical-hardware expanders.
+        for (const char* slug : {
+            "EnOsc","DLD","Tapo","SHEV","DEV","ENVVCA","PEG","MPEG",
+            "QCD","SCM","RCD","QPLFO","PI","VCAM","SISM","L4",
+            "Freeverb","BWAVP","CLKM","CLKD","Seq8","Verb","StMix",
+            "PitchShift","MultiLFO","KPLS","Drum","Djembe","Detune",
+            "SH","Switch41","Switch14","Prob8","Octave","MNMX",
+            "HPF","Gate","Follow","FM","ComplexEG","LPG","BPF",
+            "MMAudioExpander","MMButtonExpander",
+        }) {
+            spl.removeModule(slug);
+        }
+    }
+}
 
 static void initStatic__21kHz()
 {
@@ -3717,6 +3785,7 @@ void initStaticPlugins()
     initStatic__Cardinal();
     initStatic__Fundamental();
     // initStatic__ZamAudio();
+    initStatic__4ms();
     initStatic__21kHz();
     initStatic__8Mode();
     initStatic__AaronStatic();

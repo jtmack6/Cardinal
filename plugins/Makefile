@@ -310,6 +310,84 @@ FUNDAMENTAL_CUSTOM = $(DRWAV)
 # PLUGIN_FILES += $(wildcard ZamAudio/src/*.cpp)
 
 # --------------------------------------------------------------
+# 4ms Company (Hub + selected DSP modules)
+# Integration plan: plugins/4msCompany_INTEGRATION.md
+# We compile a curated subset, not the full collection. Hub gives us the
+# patch-export workflow; 5 utility DSP modules give us "real" 4ms voices.
+
+# Top-level Hub framework (skips upstream src/plugin.cc, src/expanders/, src/network/)
+PLUGIN_FILES += 4msCompany/src/hub/hub_map_button.cc
+PLUGIN_FILES += 4msCompany/src/hub/hub_jack_label.cc
+PLUGIN_FILES += 4msCompany/src/hub/hub_medium.cc
+PLUGIN_FILES += 4msCompany/src/hub/mm_blendish.cc
+PLUGIN_FILES += 4msCompany/src/comm/comm_module.cc
+PLUGIN_FILES += 4msCompany/src/mapping/midi_modules.cc
+PLUGIN_FILES += 4msCompany/src/mapping/patch_writer.cc
+PLUGIN_FILES += 4msCompany/src/mapping/module_specific_fixes.cc
+PLUGIN_FILES += 4msCompany/src/filesystem/async_filebrowser.cc
+PLUGIN_FILES += 4msCompany/src/hardware_support/memory.cc
+PLUGIN_FILES += 4msCompany/src/hardware_support/random.cc
+PLUGIN_FILES += 4msCompany/src/hardware_support/time.cc
+PLUGIN_FILES += 4msCompany/src/hardware_support/filesystem_helpers.cc
+PLUGIN_FILES += 4msCompany/src/wav/wav_file_stream.cc
+PLUGIN_FILES += 4msCompany/src/wav/dr_wav.c
+PLUGIN_FILES += 4msCompany/src/dsp/stream_resampler.cc
+PLUGIN_FILES += 4msCompany/src/graphics/waveform_display.cc
+PLUGIN_FILES += 4msCompany/src/thread/async_thread.cc
+PLUGIN_FILES += 4msCompany/src/thread/async_thread_control.cc
+PLUGIN_FILES += 4msCompany/src/compat/gui.cc
+PLUGIN_FILES += 4msCompany/src/compat/patch.cc
+PLUGIN_FILES += 4msCompany/src/flatbuffers/encode.cc
+
+# Selected per-module wrappers (each is a 3-line GenericModule<Info> instantiation)
+PLUGIN_FILES += 4msCompany/src/models/Atvert2.cc
+PLUGIN_FILES += 4msCompany/src/models/Slew.cc
+PLUGIN_FILES += 4msCompany/src/models/Noise.cc
+PLUGIN_FILES += 4msCompany/src/models/Pan.cc
+PLUGIN_FILES += 4msCompany/src/models/Source.cc
+
+# CoreModules registry
+PLUGIN_FILES += 4msCompany/lib/CoreModules/moduleFactory.cc
+
+# cpputil
+PLUGIN_FILES += 4msCompany/lib/cpputil/util/math_tables.cc
+PLUGIN_FILES += 4msCompany/lib/cpputil/util/int_to_str.cc
+
+# patch-serial
+PLUGIN_FILES += 4msCompany/lib/patch-serial/yaml_to_patch.cc
+PLUGIN_FILES += 4msCompany/lib/patch-serial/patch_to_yaml.cc
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/ryml_init.cc
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/ryml_serial.cc
+
+# rapidyaml core (5 files)
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/src/c4/yml/common.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/src/c4/yml/parse.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/src/c4/yml/node.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/src/c4/yml/tree.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/src/c4/yml/preprocess.cpp
+
+# c4core (8 non-test files)
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/format.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/base64.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/error.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/char_traits.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/memory_resource.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/language.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/memory_util.cpp
+PLUGIN_FILES += 4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src/c4/utf.cpp
+
+# Selected DSP cores (one .cc per chosen module)
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/Atvert2Core.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/SlewCore.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/NoiseCore.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/PanCore.cc
+PLUGIN_FILES += 4msCompany/lib/CoreModules/4ms/core/SourceCore.cc
+
+# Modules clashing with other collections (handled via #define rename in plugins.cpp).
+# The model slugs in plugin.json stay as-is; only C++ symbol names are renamed.
+FOURMS_CUSTOM = Noise Pan Slew
+
+# --------------------------------------------------------------
 # 21kHz
 
 PLUGIN_FILES += $(filter-out 21kHz/src/21kHz.cpp,$(wildcard 21kHz/src/*.cpp))
@@ -2147,6 +2225,40 @@ $(BUILD_DIR)/Cardinal/src/AIDA-X.cpp.o: Cardinal/src/AIDA-X.cpp
 		-Dstbrp_rect=stbrp_rect_cardinal \
 		$(RTNEURAL_FLAGS) \
 		$(CARLA_FLAGS)
+
+$(BUILD_DIR)/4msCompany/%.o: 4msCompany/%
+	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
+	@echo "Compiling $<"
+	$(SILENT)$(CXX) $< $(BUILD_CXX_FLAGS) -c -o $@ \
+		$(foreach m,$(FOURMS_CUSTOM),$(call custom_module_names,$(m),4ms)) \
+		-DpluginInstance=pluginInstance__4ms \
+		-DVCVRACK \
+		-DSAMPLE_RATE=48000 \
+		-DALPACA_NO_PREFETCH \
+		-DTEST \
+		-std=c++23 \
+		-I4msCompany/src \
+		-I4msCompany/lib \
+		-I4msCompany/lib/CoreModules \
+		-I4msCompany/lib/CoreModules/4ms \
+		-I4msCompany/lib/CoreModules/4ms/core \
+		-I4msCompany/lib/CoreModules/4ms/core/peg-common \
+		-I4msCompany/lib/CoreModules/4ms/core/peg-common/mocks \
+		-I4msCompany/lib/CoreModules/4ms/core/tapo \
+		-I4msCompany/lib/CoreModules/4ms/core/tapo/stmlib \
+		-I4msCompany/lib/CoreModules/4ms/core/alpaca/include \
+		-I4msCompany/lib/CoreModules/4ms/core/looping-delay/src \
+		-I4msCompany/lib/cpputil \
+		-I4msCompany/lib/metamodule-plugin-sdk/core-interface \
+		-I4msCompany/lib/metamodule-plugin-sdk/core-interface/filesystem \
+		-I4msCompany/lib/patch-serial \
+		-I4msCompany/lib/patch-serial/ryml \
+		-I4msCompany/lib/patch-serial/ryml/rapidyaml/src \
+		-I4msCompany/lib/patch-serial/ryml/rapidyaml/ext/c4core/src \
+		-I4msCompany/lib/flatbuffers \
+		-Wno-unused-parameter \
+		-Wno-unused-variable \
+		-Wno-unused-function
 
 $(BUILD_DIR)/21kHz/%.cpp.o: 21kHz/%.cpp
 	-@mkdir -p "$(shell dirname $(BUILD_DIR)/$<)"
