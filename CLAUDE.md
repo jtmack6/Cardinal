@@ -89,25 +89,30 @@ The top-level Makefile delegates to subdir Makefiles. Useful sub-targets for qui
 
 Build artifacts land in `bin/` as bundle directories (`Cardinal.lv2/`, `Cardinal.vst3/`, `Cardinal.clap/`, `Cardinal.vst/`, plus `CardinalFX.*`, `CardinalSynth.*`, `CardinalMini.*` and standalones `Cardinal`, `CardinalNative`, `CardinalMini`).
 
-### Known local patches (not committed upstream, not in parent repo either)
+### Patched submodules (forked under jtmack6)
 
-These are working-tree edits inside submodules that are required to build on this machine but live nowhere except on disk. **`git submodule update <path>` will silently delete them** — re-apply from the recipes below if that happens.
+Three submodules carry local patches. Rather than living as fragile working-tree edits, each is hosted on a fork on GitHub under `jtmack6/`, on a `cardinal-local` branch off the SHA Cardinal pins. The parent `.gitmodules` URLs point at the forks.
 
-#### 1. MindMeldModular `Shape.hpp` — macOS 26 SDK `std::abs` ambiguity
+| Path | Fork | Branch | Patch |
+|---|---|---|---|
+| `plugins/MindMeldModular` | `jtmack6/MindMeldModular` | `cardinal-local` | `src/ShapeMaster/Shape.hpp` — replace `std::abs<T>(...)` with header-free ternary (macOS 26 SDK libc++ removed the explicit-template form for floats) |
+| `plugins/4msCompany` | `jtmack6/4ms-vcv` | `cardinal-local` | `src/network/network.cpp` — comment out unused `<openssl/crypto.h>` and `CURL_STATICLIB` (Cardinal links the system libcurl dylib; openssl isn't needed) |
+| `plugins/surgext` | `jtmack6/surge-rack` | `cardinal-local` | `src/VCO.cpp` — drop redundant `.template ` qualifier on two `emplace_back` calls (newer clang strictness) |
 
-- **File:** `plugins/MindMeldModular/src/ShapeMaster/Shape.hpp` (submodule pinned at `8136f0c9`)
-- **Symptom:** build fails with `error: call to 'abs' is ambiguous` in `Shape::calcY<float>` and `Shape::calcY<double>`. Cascades into `DisplayUtil.cpp`, `DisplayLight.cpp`, `Display.cpp`, `Channel.cpp`.
-- **Cause:** macOS 26 SDK's libc++ declares integer `std::abs` as non-template overloads in `<__math/abs.h>`. The explicit-template form `std::abs<T>(...)` for floating types becomes ambiguous against them.
-- **Fix:** at line 160, replace
-  ```cpp
-  T dx = std::abs<T>((T)points[p + 1].x - (T)points[p].x);
-  ```
-  with
-  ```cpp
-  T dx_signed = (T)points[p + 1].x - (T)points[p].x;
-  T dx = dx_signed < (T)0 ? -dx_signed : dx_signed;
-  ```
-- **Why ternary instead of `std::abs(...)` without `<T>`:** `Shape.hpp` doesn't directly include `<cmath>`, so the floating-point `std::abs` overloads aren't reliably visible. Ternary needs no headers.
+In each fork, `origin` points to your fork and `upstream` points to the original repo, so `git fetch upstream` works for rebasing later.
+
+**To re-apply or audit on a fresh clone:** `git submodule update --init --recursive` will check out the right SHAs from the forks. To regenerate the forks if they're lost: see `scripts/setup-forked-submodules.sh`. The script is idempotent, auto-creates forks via `gh repo fork`, and uses `GITHUB_PAT` (or `gh auth login`) for the API call.
+
+**To bump a submodule to a newer upstream:**
+```bash
+cd plugins/<sub>
+git fetch upstream
+git rebase upstream/<branch> cardinal-local
+git push --force-with-lease origin cardinal-local
+cd ../..
+git add plugins/<sub>
+git commit -m "Bump <sub> to latest upstream + cardinal-local rebase"
+```
 
 ### Submodule drift (the most common build break)
 

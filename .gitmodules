@@ -45,7 +45,7 @@
 	url = https://github.com/CardinalModules/cf.git
 [submodule "plugins/MindMeldModular"]
 	path = plugins/MindMeldModular
-	url = https://github.com/MarcBoule/MindMeldModular.git
+	url = git@github.com:jtmack6/MindMeldModular.git
 [submodule "plugins/ValleyAudio"]
 	path = plugins/ValleyAudio
 	url = https://github.com/ValleyAudio/ValleyRackFree.git
@@ -223,7 +223,7 @@
 	url = https://github.com/stoermelder/vcvrack-packone.git
 [submodule "plugins/surgext"]
 	path = plugins/surgext
-	url = https://github.com/surge-synthesizer/surge-rack.git
+	url = git@github.com:jtmack6/surge-rack.git
 [submodule "plugins/Sapphire"]
 	path = plugins/Sapphire
 	url = https://github.com/cosinekitty/sapphire.git
@@ -268,4 +268,4 @@
 	url = https://github.com/DaveBenham/VenomModules
 [submodule "plugins/4msCompany"]
 	path = plugins/4msCompany
-	url = https://github.com/4ms/4ms-vcv.git
+	url = git@github.com:jtmack6/4ms-vcv.git
