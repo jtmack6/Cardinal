@@ -104,6 +104,41 @@ void destroyStaticPlugins();
 const std::string CARDINAL_VERSION = "26.02";
 
 // -----------------------------------------------------------------------------------------------------------
+// Retina scale workaround for DPF's stale cached scaleFactor on macOS.
+// See CardinalCommon.hpp for the why.
+
+#ifdef ARCH_MAC
+# include <objc/objc.h>
+# include <objc/runtime.h>
+# include <objc/message.h>
+#endif
+
+double cardinalActualScaleFactor(const double dpfFallback)
+{
+#ifdef ARCH_MAC
+    Class NSScreenClass = objc_getClass("NSScreen");
+    if (NSScreenClass == nullptr)
+        return dpfFallback;
+    SEL mainScreenSel = sel_getUid("mainScreen");
+    SEL backingScaleSel = sel_getUid("backingScaleFactor");
+    typedef id (*MainScreenFn)(Class, SEL);
+    id mainScreen = ((MainScreenFn)objc_msgSend)(NSScreenClass, mainScreenSel);
+    if (mainScreen == nullptr)
+        return dpfFallback;
+# if defined(__aarch64__)
+    typedef double (*ScaleFn)(id, SEL);
+    const double s = ((ScaleFn)objc_msgSend)(mainScreen, backingScaleSel);
+# else
+    extern "C" double objc_msgSend_fpret(id, SEL, ...);
+    const double s = objc_msgSend_fpret(mainScreen, backingScaleSel);
+# endif
+    return s > 0.0 ? s : dpfFallback;
+#else
+    return dpfFallback;
+#endif
+}
+
+// -----------------------------------------------------------------------------------------------------------
 
 #ifndef HEADLESS
 void handleHostParameterDrag(const CardinalPluginContext* pcontext, uint index, bool started)

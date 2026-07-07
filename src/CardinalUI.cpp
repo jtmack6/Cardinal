@@ -416,7 +416,7 @@ public:
         window.setIgnoringKeyRepeat(true);
         context->nativeWindowId = window.getNativeWindowHandle();
 
-        const double scaleFactor = getScaleFactor();
+        const double scaleFactor = cardinalActualScaleFactor(getScaleFactor());
 
         setGeometryConstraints(648 * scaleFactor, 538 * scaleFactor);
 
@@ -942,7 +942,7 @@ protected:
 
             if (width > 0 && height > 0)
             {
-                const double scaleFactor = getScaleFactor();
+                const double scaleFactor = cardinalActualScaleFactor(getScaleFactor());
                 setSize(width * scaleFactor, height * scaleFactor);
             }
 
@@ -1026,7 +1026,7 @@ protected:
         if (inSelfTest) return false;
        #endif
 
-        const rack::math::Vec mousePos = rack::math::Vec(ev.pos.getX(), ev.pos.getY()).div(getScaleFactor()).round();
+        const rack::math::Vec mousePos = rack::math::Vec(ev.pos.getX(), ev.pos.getY()).div(cardinalActualScaleFactor(getScaleFactor())).round();
         const rack::math::Vec mouseDelta = mousePos.minus(lastMousePos);
 
         lastMousePos = mousePos;
@@ -1168,7 +1168,7 @@ protected:
         if (context->window != nullptr)
             WindowSetInternalSize(context->window, rack::math::Vec(ev.size.getWidth(), ev.size.getHeight()));
 
-        const double scaleFactor = getScaleFactor();
+        const double scaleFactor = cardinalActualScaleFactor(getScaleFactor());
         const int width = static_cast<int>(ev.size.getWidth() / scaleFactor + 0.5);
         const int height = static_cast<int>(ev.size.getHeight() / scaleFactor + 0.5);
 

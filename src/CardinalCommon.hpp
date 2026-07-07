@@ -53,6 +53,14 @@ void switchDarkMode(bool darkMode);
 
 } // namespace rack
 
+// Returns the real screen scale factor (e.g. 2.0 on Retina). On macOS this
+// queries NSScreen.mainScreen.backingScaleFactor at runtime via the Obj-C
+// runtime, working around DPF's stale cached scaleFactor (captured at Window
+// construction before the NSView is attached to a screen, so it returns the
+// 1.0 default forever on Retina). Returns dpfFallback on non-macOS or if the
+// runtime query fails.
+double cardinalActualScaleFactor(double dpfFallback);
+
 // -----------------------------------------------------------------------------------------------------------
 
 namespace patchUtils {

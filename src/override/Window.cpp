@@ -38,35 +38,8 @@
 #include "../CardinalPluginContext.hpp"
 #include "../WindowParameters.hpp"
 
-#ifdef ARCH_MAC
-// Workaround for DPF caching pugl's scaleFactor at Window construction time,
-// when the NSView isn't yet attached to a screen → backingScaleFactor returns
-// 1.0 default and gets stuck. This causes Cardinal's chrome to render at half
-// size on Retina displays. We query NSScreen.mainScreen.backingScaleFactor at
-// runtime via the Objective-C runtime to get the actual value.
-# include <objc/objc.h>
-# include <objc/runtime.h>
-# include <objc/message.h>
-static float cardinalQueryMacRetinaScale()
-{
-	Class NSScreenClass = objc_getClass("NSScreen");
-	if (!NSScreenClass) return 0.0f;
-	SEL mainScreenSel = sel_getUid("mainScreen");
-	SEL backingScaleSel = sel_getUid("backingScaleFactor");
-	typedef id (*MainScreenFn)(Class, SEL);
-	id mainScreen = ((MainScreenFn)objc_msgSend)(NSScreenClass, mainScreenSel);
-	if (!mainScreen) return 0.0f;
-#  if defined(__aarch64__)
-	// ARM64: fp-returning Obj-C calls go through objc_msgSend
-	typedef double (*ScaleFn)(id, SEL);
-	return (float)((ScaleFn)objc_msgSend)(mainScreen, backingScaleSel);
-#  else
-	// x86_64: fp-returning Obj-C calls go through objc_msgSend_fpret
-	extern "C" double objc_msgSend_fpret(id, SEL, ...);
-	return (float)objc_msgSend_fpret(mainScreen, backingScaleSel);
-#  endif
-}
-#endif
+// Real Retina scale factor; see CardinalCommon.hpp for the rationale.
+double cardinalActualScaleFactor(double dpfFallback);
 
 #ifndef DGL_NO_SHARED_RESOURCES
 # include "src/Resources.hpp"
@@ -665,15 +638,12 @@ void Window::step() {
 
 	// Get desired pixel ratio. DPF caches the scale factor at Window
 	// construction; on macOS that's often before the NSView is attached to
-	// a screen, so it returns 1.0 default and stays stuck. On macOS we
-	// override with a runtime query of NSScreen.mainScreen.backingScaleFactor
-	// (= 2.0 on Retina) so chrome and modules render at correct density.
-	float newPixelRatio = internal->tlw->getScaleFactor();
-#ifdef ARCH_MAC
-	const float macRetinaScale = cardinalQueryMacRetinaScale();
-	if (macRetinaScale > 0.0f)
-		newPixelRatio = macRetinaScale;
-#endif
+	// a screen, so it returns 1.0 default and stays stuck. cardinalActualScaleFactor
+	// queries NSScreen at runtime to get the real value (2.0 on Retina).
+	// CardinalUI.cpp's mouse handlers use the same helper, so the scene size
+	// (computed from pixelRatio) and mouse coords stay in the same coordinate
+	// space.
+	float newPixelRatio = (float)cardinalActualScaleFactor(internal->tlw->getScaleFactor());
 	if (newPixelRatio != pixelRatio) {
 		pixelRatio = newPixelRatio;
 		APP->event->handleDirty();
